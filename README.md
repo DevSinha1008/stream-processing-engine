@@ -1,92 +1,81 @@
 # Stream Processing Engine
 
-A lock-free, multi-stage stream processing engine in C++20. Events flow
-through bounded single-producer/single-consumer (SPSC) rings between
-pipeline stages (generate → transform → windowed aggregate), with
-backpressure propagating upstream when any stage falls behind.
+A lock-free, multi-stage stream processing engine written in C++20. Events
+flow through bounded single-producer/single-consumer (SPSC) rings between
+pipeline stages (generate -> transform -> windowed aggregate), with
+backpressure propagating upstream when a stage falls behind.
 
 ## Layout
 
-```
 include/spe/spsc_ring.hpp    SPSC lock-free ring buffer:
-                              - SpscRingNaive: per-event atomic ops (baseline)
+                              - SpscRingNaive: per-event atomic ops
                               - SpscRing: index caching + batched publication
-include/spe/mutex_queue.hpp  Mutex-guarded bounded queue (fair comparison baseline)
+include/spe/mutex_queue.hpp  Mutex-guarded bounded queue (comparison baseline)
 include/spe/event.hpp        32-byte POD event + tumbling-window aggregation
 include/spe/pipeline.hpp     3-stage pipeline with backpressure
-bench/bench_main.cpp         Benchmark harness (throughput ladder + latency percentiles)
+bench/bench_main.cpp         Benchmark harness (throughput + latency percentiles)
 tests/tests.cpp              Correctness tests (run under TSan and ASan)
-```
 
-## Build & run
+## Build and run
 
-```bash
 mkdir build && cd build
 cmake .. && make
 ./tests               # correctness
-./bench 20000000      # full benchmark, 20M events
-```
+./bench 20000000      # benchmark, 20M events
 
-Sanitizer runs (backs the TSan/ASan validation claim):
+Sanitizer builds:
 
-```bash
 mkdir build-tsan && cd build-tsan && cmake .. -DSANITIZE=thread && make tests && ./tests
 mkdir build-asan && cd build-asan && cmake .. -DSANITIZE=address && make tests && ./tests
-```
 
-## Where each CV figure comes from
+## Design
 
-| Slot | Meaning | Printed by bench as |
-|------|---------|---------------------|
-| [X]  | pipeline throughput, M events/sec | `3-stage pipeline` |
-| [N]  | cores used | `cores available` |
-| [Z]  | batched lock-free ÷ mutex throughput | `(…x vs mutex)  [Z]` |
-| [A]  | batched vs naive lock-free gain | `batching gain over naive [A]` |
-| [B/C/D] | p50 / p99 / p99.9 end-to-end latency | `end-to-end latency` block |
+SPSC over MPMC. Each ring index has exactly one writer, so plain
+load/store with acquire/release ordering is sufficient, with no CAS loops
+and no ABA problem. Multi-producer scenarios are handled by composing
+multiple SPSC rings (one per producer) rather than a single MPMC structure.
 
-**Measure on your own hardware.** Container/VM numbers are not representative
-(shared cores, no `-march=native` guarantees, noisy neighbours). For clean
-numbers: close other applications, run on mains power, and consider pinning
-threads (`taskset -c 0-3 ./bench`). Report the median of the printed runs.
+Memory ordering. The producer writes the slot then publishes with
+memory_order_release; the consumer reads the index with memory_order_acquire
+before reading the slot. This gives the one guarantee needed, that slot
+writes happen-before the index publish, without paying for the global
+ordering seq_cst would additionally impose.
 
-## Benchmark methodology (the part interviewers probe)
+Batched publication. The optimised ring caches the other side's index
+locally and only re-loads it when the cached view suggests full or empty,
+and publishes once per batch rather than once per event. Cross-core atomic
+operations force cache-line ownership transfers between cores; batching
+amortises that synchronisation cost across the batch instead of paying it
+per event.
 
-- **Warmup pass** before every measured configuration (cold caches, page
-  faults, and branch-predictor training would otherwise pollute run 1).
-- **Median of 5 repetitions** for throughput — robust to interference,
-  unlike best-of (cherry-picking) or mean (skewed by one bad run).
-- **Latency measured separately from throughput**, sampling 1 event in 64.
-  Timestamping every event would perturb the measurement (observer effect).
-- **Percentiles, not means**, because latency is heavy-tailed and the tail
-  is what matters: p50/p99/p99.9 are ranked positions in the sorted sample.
-- **Fair baseline**: the mutex queue shares the ring storage, mask indexing,
-  event type, and thread structure — only the synchronisation differs, so
-  the [Z]× is attributable to the lock-free design and nothing else.
+Cache-line alignment. Head and tail are written by different cores and are
+aligned to separate cache lines to avoid false sharing, since otherwise a
+write to one would invalidate the other core's cached copy of the
+neighbouring, logically independent, variable.
 
-## Design decisions you should be able to defend
+Backpressure. Bounded rings with a spinning or yielding producer: overload
+slows the source rather than dropping events. A drop-and-count policy is a
+one-line alternative in the push loop for cases where freshness matters
+more than completeness.
 
-1. **Why SPSC (not MPMC)?** Each index has exactly one writer, so plain
-   load/store with acquire/release suffices — no CAS loops, no ABA problem.
-   Multi-producer needs are met by composing SPSC rings (one per producer),
-   which is also how real systems often do it.
-2. **Why acquire/release, not seq_cst?** We need exactly one guarantee: slot
-   writes happen-before the index publish. Acquire/release provides it;
-   seq_cst additionally imposes a global order across unrelated atomics,
-   costing more (especially on ARM) for a property we don't use.
-3. **Why does batching help?** Cross-core atomic ops force cache-line
-   ownership transfers (MESI traffic). Publishing once per 64 events instead
-   of per event cuts that traffic ~64×; index caching removes most loads of
-   the other side's index. Synchronisation cost is amortised across a batch.
-4. **Why cache-line-align head and tail?** They're written by different
-   cores. On one line, every write by one core invalidates the other core's
-   copy — false sharing — even though the variables are logically independent.
-5. **Backpressure choice:** bounded rings + spinning/yielding producer means
-   overload slows the source instead of dropping data (loss-less, at the
-   cost of source latency). The drop-and-count alternative suits cases where
-   freshness beats completeness; it's a one-line change in the push loop.
-6. **A real bug TSan caught during development:** both producer and
-   transformer originally incremented one shared `backpressure_stalls`
-   counter — an unsynchronised same-address write, i.e. a data race. Fixed
-   by per-thread local accumulation with a single write at thread exit
-   (better than an atomic, which would add hot-path coherence traffic for
-   a statistic). This is a good story about why sanitizers exist.
+## Benchmark methodology
+
+Warmup pass before every measured configuration. Median of 5 repetitions
+reported for throughput. Latency measured in a separate run from
+throughput, sampling 1 event in 64 to avoid perturbing the measurement.
+Percentiles (p50/p99/p99.9) rather than means, since latency is
+heavy-tailed. The mutex-queue baseline shares ring storage, indexing,
+event type, and thread structure with the lock-free versions; only the
+synchronisation strategy differs.
+
+Numbers should be measured on the target machine rather than in a
+container or VM, since shared cores and scheduling noise are not
+representative.
+
+## Notes
+
+During development, ThreadSanitizer flagged a data race where the
+producer and transformer threads both incremented one shared stall
+counter without synchronisation. Fixed with per-thread local accumulation
+and a single write at thread exit, avoiding the coherence traffic an
+atomic counter would add to the hot path.

@@ -30,9 +30,7 @@
 //    other side's index locally and only re-loads it when the cached view
 //    says the buffer looks full/empty. Combined with batch publish
 //    (process N events, store the index once), the number of cross-core
-//    atomic operations drops by ~the batch factor. That amortisation of
-//    synchronisation cost is where the [A]% gain comes from.
-
+//    atomic operations drops by ~the batch factor. 
 #include <atomic>
 #include <cstddef>
 #include <cstdint>

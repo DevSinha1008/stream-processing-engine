@@ -1,5 +1,4 @@
-// tests.cpp — Correctness tests. Run under TSan/ASan via the sanitize build
-// (see CMakeLists) to back the "validated under TSan/ASan" CV claim.
+// tests.cpp — Correctness tests. Run under TSan/ASan via the sanitize build.
 //
 // The key SPSC test: producer pushes 0..N-1, consumer must receive exactly
 // 0..N-1 in order with none lost or duplicated, across both APIs, while the

@@ -1,7 +1,4 @@
-// bench_main.cpp — Produces every figure slot on the CV.
-//
-// Methodology notes (interviewers ask about METHOD before numbers):
-//
+
 //  * Warmup: each benchmark does an untimed warmup pass so the first
 //    measured run isn't paying for cold caches, page faults, or branch
 //    predictor training.
@@ -15,9 +12,7 @@
 //    are the values at those rank positions. We report percentiles, not
 //    means, because latency distributions are heavy-tailed and the tail
 //    is what matters in real systems.
-//  * The [Z]x comparison keeps EVERYTHING identical except the queue type:
-//    same event struct, same counts, same threads, same capacity.
-//
+
 // Figures produced:
 //   [X]  events/sec of the full pipeline (optimised rings, batched)
 //   [N]  hardware threads used

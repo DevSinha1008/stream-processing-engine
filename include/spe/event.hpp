@@ -5,7 +5,7 @@
 // cache line. Trivially-copyable matters because the ring buffer moves them
 // by assignment in the hot path; no allocation ever happens per event.
 //
-// TumblingWindow implements windowed aggregation (CV bullet 3): rolling
+// TumblingWindow implements windowed aggregation: rolling
 // count / mean / min / max over fixed time windows keyed off the event
 // timestamp. Tumbling = non-overlapping consecutive windows (the simplest
 // correct windowing scheme; sliding windows are a natural extension).

@@ -1,5 +1,4 @@
 #pragma once
-// pipeline.hpp — Multi-stage, event-driven pipeline (CV bullet 3).
 //
 // Topology:  generator -> [ring q1] -> transform stage -> [ring q2] -> aggregate stage
 //
@@ -7,9 +6,7 @@
 // queue is SPSC, the whole pipeline stays lock-free without needing MPMC
 // machinery. Backpressure: when a downstream ring is full, the upstream
 // stage SPINS-THEN-YIELDS rather than dropping events — i.e. pressure
-// propagates backwards until the source slows down. That "bounded queues +
-// blocking producer" scheme is the classic backpressure design; the
-// alternative (drop + count) is one line away and discussed in the README.
+// propagates backwards until the source slows down. 
 //
 // The transform stage is deliberately cheap (scale + clamp) so benchmarks
 // measure the ENGINE's overhead, not an artificial workload.

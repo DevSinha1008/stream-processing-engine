@@ -1,13 +1,11 @@
 #pragma once
-// mutex_queue.hpp — The baseline for the [Z]x throughput comparison.
+
 //
 // A perfectly reasonable, correct bounded queue guarded by a std::mutex.
 // This is what "just use a lock" looks like. It is NOT a strawman: it uses
 // the same ring storage, power-of-two mask, and API shape as the lock-free
 // versions, so the measured difference is attributable to the
 // synchronisation strategy, not to unrelated implementation details.
-// (If your baseline is artificially bad, your [Z]x figure is dishonest and
-// an interviewer will smell it. A fair baseline is the whole point.)
 
 #include <cstdint>
 #include <mutex>

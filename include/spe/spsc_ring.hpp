@@ -1,7 +1,6 @@
 #pragma once
 // spsc_ring.hpp — Lock-free single-producer/single-consumer ring buffer.
 //
-// Design notes (the things you must be able to defend):
 //
 // 1. SPSC: exactly one producer thread and one consumer thread. This
 //    restriction is what makes a lock-free design simple and fast: each
@@ -25,8 +24,7 @@
 // 4. Power-of-two capacity: index wrap uses `& mask_` instead of `%`,
 //    because integer modulo is one of the slowest ALU ops in the hot path.
 //
-// 5. Index caching (the batched-atomics optimisation, CV bullet 2):
-//    In the naive version, every push loads `tail` and every pop loads
+// 5. Index caching: In the naive version, every push loads `tail` and every pop loads
 //    `head` — an atomic load of a cache line owned by the *other* core,
 //    i.e. coherence traffic per event. The optimised version caches the
 //    other side's index locally and only re-loads it when the cached view
@@ -52,8 +50,7 @@ inline constexpr std::size_t kCacheLine = 64;
 
 // ---------------------------------------------------------------------------
 // Naive SPSC ring: correct, lock-free, but does one acquire-load of the
-// other side's index per operation. This is the baseline the batched
-// version is measured against for the [A]% figure.
+// other side's index per operation. 
 // ---------------------------------------------------------------------------
 template <typename T>
 class SpscRingNaive {

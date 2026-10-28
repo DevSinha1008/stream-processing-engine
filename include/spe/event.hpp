@@ -7,9 +7,7 @@
 //
 // TumblingWindow implements windowed aggregation: rolling
 // count / mean / min / max over fixed time windows keyed off the event
-// timestamp. Tumbling = non-overlapping consecutive windows (the simplest
-// correct windowing scheme; sliding windows are a natural extension).
-
+// timestamp. Tumbling = non-overlapping consecutive windows.
 #include <cstdint>
 #include <limits>
 #include <vector>

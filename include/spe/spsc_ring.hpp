@@ -1,7 +1,6 @@
 #pragma once
 // spsc_ring.hpp — Lock-free single-producer/single-consumer ring buffer.
 //
-//
 // 1. SPSC: exactly one producer thread and one consumer thread. This
 //    restriction is what makes a lock-free design simple and fast: each
 //    index (head/tail) is written by exactly one thread, so we never need

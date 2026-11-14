@@ -1,8 +1,8 @@
 #pragma once
 
+// mutex_queue.hpp — Bounded queue guarded by a std::mutex (baseline).
 //
-// A perfectly reasonable, correct bounded queue guarded by a std::mutex.
-// This is what "just use a lock" looks like. It is NOT a strawman: it uses
+// Correct, straightforward locking. It uses
 // the same ring storage, power-of-two mask, and API shape as the lock-free
 // versions, so the measured difference is attributable to the
 // synchronisation strategy, not to unrelated implementation details.

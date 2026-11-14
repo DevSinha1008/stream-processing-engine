@@ -19,7 +19,7 @@ target_include_directories(tests PRIVATE include)
 target_link_libraries(tests PRIVATE pthread)
 
 # Sanitizer builds: cmake -DSANITIZE=thread .. (or =address)
-# Backs the "validated under TSan/ASan" claim — run the tests target under both.
+# Run the tests target under both.
 if(SANITIZE STREQUAL "thread")
   target_compile_options(tests PRIVATE -fsanitize=thread -O1 -g)
   target_link_options(tests PRIVATE -fsanitize=thread)

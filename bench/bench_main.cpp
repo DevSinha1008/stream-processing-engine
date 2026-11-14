@@ -13,12 +13,12 @@
 //    means, because latency distributions are heavy-tailed and the tail
 //    is what matters in real systems.
 
-// Figures produced:
-//   [X]  events/sec of the full pipeline (optimised rings, batched)
-//   [N]  hardware threads used
-//   [Z]  optimised-ring throughput / mutex-queue throughput
-//   [A]  % gain of batched/cached ring over naive per-event-atomic ring
-//   [B/C/D]  p50 / p99 / p99.9 end-to-end pipeline latency, nanoseconds
+// Output:
+//   * hardware threads available
+//   * throughput of mutex queue, naive ring and batched ring, with speedup vs mutex
+//   * % gain of the batched/cached ring over the naive per-event-atomic ring
+//   * events/sec of the full 3-stage pipeline
+//   * p50 / p99 / p99.9 end-to-end pipeline latency, nanoseconds
 
 #include <algorithm>
 #include <chrono>
@@ -185,7 +185,7 @@ int main(int argc, char** argv) {
     const std::size_t batch = 64;
     const int reps = 5;
 
-    std::printf("cores available [N]: %u\n\n", std::thread::hardware_concurrency());
+    std::printf("cores available: %u\n\n", std::thread::hardware_concurrency());
 
     // --- throughput ladder: mutex -> naive lock-free -> batched lock-free ---
     const double mtx = median_throughput(
@@ -202,12 +202,12 @@ int main(int argc, char** argv) {
     const double batched = median_throughput(
         [&]{ return std::make_unique<spe::SpscRing<spe::Event>>(cap); },
         total, /*batch=*/true, batch, reps);
-    std::printf("lock-free (batched) : %8.2f M ev/s   (%.1fx vs mutex)  [Z]\n",
+    std::printf("lock-free (batched) : %8.2f M ev/s   (%.1fx vs mutex)\n",
                 batched / 1e6, batched / mtx);
-    std::printf("batching gain over naive [A]: +%.1f%%\n\n",
+    std::printf("batching gain over naive: +%.1f%%\n\n",
                 100.0 * (batched - naive) / naive);
 
-    // --- full pipeline throughput [X] ---
+    // --- full pipeline throughput ---
     {
         spe::Pipeline pl(cap, /*window=*/1'000'000 /*1ms logical*/, batch);
         pl.run(total / 4); // warmup
@@ -221,15 +221,15 @@ int main(int argc, char** argv) {
         pruns.push_back(double(st.aggregated) / dt);
     }
     std::sort(pruns.begin(), pruns.end());
-    std::printf("3-stage pipeline    : %8.2f M ev/s  [X]\n\n", pruns[reps/2] / 1e6);
+    std::printf("3-stage pipeline    : %8.2f M ev/s\n\n", pruns[reps/2] / 1e6);
 
-    // --- latency percentiles [B]/[C]/[D] (separate run, sampled 1-in-64) ---
+    // --- latency percentiles (separate run, sampled 1-in-64) ---
     std::vector<uint64_t> lat;
     pipeline_latency(total / 2, cap, batch, /*stride=*/64, lat); // warmup
     pipeline_latency(total, cap, batch, 64, lat);
     std::printf("end-to-end latency (n=%zu samples):\n", lat.size());
-    std::printf("  p50   [B]: %6llu ns\n", (unsigned long long)pct(lat, 0.50));
-    std::printf("  p99   [C]: %6llu ns\n", (unsigned long long)pct(lat, 0.99));
-    std::printf("  p99.9 [D]: %6llu ns\n", (unsigned long long)pct(lat, 0.999));
+    std::printf("  p50  : %6llu ns\n", (unsigned long long)pct(lat, 0.50));
+    std::printf("  p99  : %6llu ns\n", (unsigned long long)pct(lat, 0.99));
+    std::printf("  p99.9: %6llu ns\n", (unsigned long long)pct(lat, 0.999));
     return 0;
 }
